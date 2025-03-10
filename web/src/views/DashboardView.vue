@@ -35,17 +35,17 @@ const loadSettingsFromLocalStorage = () => {
 
 onMounted(() => {
     loadSettingsFromLocalStorage();
-    const ws = new WebSocket(`${location.protocol === 'https' ? 'wss' : 'ws'}://${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/ws`)
+    const ws = new WebSocket(`${location.protocol === 'https' ? 'wss' : 'ws'}://${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/realtime`)
 
     ws.onmessage = (event) => {
         const newData = JSON.parse(event.data)
 
-        const GPUListData = get(newData, 'gpu_info', [])
-        const GPUProcessData = get(newData, 'gpu_processes', [])
+        const GPUListData = get(newData, 'nvidia.gpu_info', [])
+        const GPUProcessData = get(newData, 'nvidia.gpu_processes', [])
         // 更新历史数据
         ChartHistoryData.value.push({
             list: GPUListData,
-            timestamp: get(newData, 'timestamp', 0)
+            timestamp: get(newData, 'nvidia.timestamp', 0)
         })
         GPUProcessData.value = GPUProcessData
 

@@ -73,6 +73,7 @@ func getGPUInfo() ([]models.GPUInfo, error) {
 
 	return gpuInfos, nil
 }
+
 func getGPUProcesses() ([]models.GPUProcess, error) {
 	cmd := exec.Command(
 		"nvidia-smi",

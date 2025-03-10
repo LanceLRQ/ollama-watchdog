@@ -1,0 +1,3 @@
+listen: 0.0.0.0:23333
+ollama_listen: http://127.0.0.1:11434
+nvidia_smi_path: /usr/bin/nvidia-smi
