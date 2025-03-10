@@ -25,7 +25,7 @@ func GetOllamaPS(cfg *configs.ServerConfigStruct) fiber.Map {
 		return fiber.Map{
 			"status": false,
 			"code":   statusCode,
-			"error":  errs,
+			"message":  errs,
 		}
 	}
 
@@ -35,7 +35,7 @@ func GetOllamaPS(cfg *configs.ServerConfigStruct) fiber.Map {
 		return fiber.Map{
 			"status": false,
 			"code":   statusCode,
-			"error":  errs,
+			"message":  errs,
 		}
 	}
 
@@ -43,5 +43,6 @@ func GetOllamaPS(cfg *configs.ServerConfigStruct) fiber.Map {
 		"status": true,
 		"code":   statusCode,
 		"data":   resp,
+		"message": "",
 	}
 }

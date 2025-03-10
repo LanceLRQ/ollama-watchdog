@@ -8,6 +8,7 @@ import (
 	"github.com/LanceLRQ/ollama-watchdog/configs"
 	"github.com/LanceLRQ/ollama-watchdog/models"
 	"github.com/LanceLRQ/ollama-watchdog/services"
+	"github.com/LanceLRQ/ollama-watchdog/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/proxy"
 	"github.com/gofiber/websocket/v2"
@@ -49,6 +50,37 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 
 	app.Get("/api/nvidia", func(c *fiber.Ctx) error {
 		return c.JSON(nvidiaResp)
+	})
+	
+	app.Post("/api/kill", func(c *fiber.Ctx) error {
+		var data fiber.Map
+		if err := c.BodyParser(&data); err != nil {
+			return err
+		}
+		if data["type"] != nil && data["type"].(string) == "ollama"  {
+			if data["name"] != nil {
+				if name, ok := data["name"].(string); ok {
+					err := utils.TerminateOllamaProcess(name)
+					if err != nil {	
+						return c.JSON(fiber.Map{"status": false, "message": "Failed to terminate process"})
+					}
+					return c.JSON(fiber.Map{"status": true})
+				}
+			}
+			return c.JSON(fiber.Map{"status": false, "message": "ollama model name is required"})
+		} else {
+			if data["pid"] != nil {
+				pid := data["pid"].(int)
+				
+				err := utils.TerminateProcess(pid)
+				if err != nil {	
+					return c.JSON(fiber.Map{"status": false, "message": "Failed to terminate process"})
+				}
+				return c.JSON(fiber.Map{"status": true})
+			} else {
+				return c.JSON(fiber.Map{"status": false, "message": "pid is required"})
+			}
+		}
 	})
 
 	app.Get("/api/ollama/*", func(c *fiber.Ctx) error {
