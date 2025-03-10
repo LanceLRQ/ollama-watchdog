@@ -1,194 +1,376 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart } from 'echarts/charts'
-import { LegendComponent } from 'echarts/components';
-import { GridComponent, TooltipComponent, TitleComponent } from 'echarts/components'
-import VChart from 'vue-echarts'
-import { get, pick, isArray } from 'lodash';
-import { DefaultServerSettings } from '../models/server'
-import dayjs from 'dayjs';
+import { ref, onMounted } from "vue";
+import { use } from "echarts/core";
+import { CanvasRenderer } from "echarts/renderers";
+import { LineChart } from "echarts/charts";
+import { LegendComponent } from "echarts/components";
+import {
+    GridComponent,
+    TooltipComponent,
+    TitleComponent,
+} from "echarts/components";
+import VChart from "vue-echarts";
+import { get, pick, isArray } from "lodash";
+import { DefaultServerSettings } from "../models/server";
+import dayjs from "dayjs";
 
+use([
+    CanvasRenderer,
+    LineChart,
+    GridComponent,
+    TooltipComponent,
+    TitleComponent,
+    LegendComponent,
+]);
 
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
+const ChartHistoryData = ref([]);
+const GPUProcessData = ref([]);
+const maxHistory = 60; // 保留60个数据点（1分钟）
+const GPUList = ref([]);
+const CurrentGPUInfo = ref([]);
+const OllamaPSList = ref([]);
 
-const ChartHistoryData = ref([])
-const GPUProcessData = ref([])
-const maxHistory = 60 // 保留60个数据点（1分钟）
-const GPUList = ref([])
-
-const serverSettings = ref({ ...DefaultServerSettings })
+const serverSettings = ref({ ...DefaultServerSettings });
 
 const loadSettingsFromLocalStorage = () => {
     // 从本地存储加载设置
-    const settings = localStorage.getItem('watchdog_api_settings')
+    const settings = localStorage.getItem("watchdog_api_settings");
     if (settings) {
         try {
-            serverSettings.value = Object.assign({}, DefaultServerSettings, JSON.parse(settings))
+            serverSettings.value = Object.assign(
+                {},
+                DefaultServerSettings,
+                JSON.parse(settings)
+            );
         } catch (e) {
-            console.error('Error parsing settings:', e)
+            console.error("Error parsing settings:", e);
         }
     }
-    return settings
-}
+    return settings;
+};
 
 onMounted(() => {
     loadSettingsFromLocalStorage();
-    const ws = new WebSocket(`${location.protocol === 'https' ? 'wss' : 'ws'}://${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/realtime`)
+    const ws = new WebSocket(
+        `${location.protocol === "https" ? "wss" : "ws"}://${serverSettings.value.apiHost
+        }${serverSettings.value.apiBasePath}/realtime`
+    );
 
     ws.onmessage = (event) => {
-        const newData = JSON.parse(event.data)
+        const newData = JSON.parse(event.data);
 
-        const GPUListData = get(newData, 'nvidia.gpu_info', [])
-        const GPUProcessData = get(newData, 'nvidia.gpu_processes', [])
         // 更新历史数据
+        const GPUListData = get(newData, "nvidia.gpu_info", []);
         ChartHistoryData.value.push({
             list: GPUListData,
-            timestamp: get(newData, 'nvidia.timestamp', 0)
-        })
-        GPUProcessData.value = GPUProcessData
+            timestamp: get(newData, "nvidia.timestamp", 0),
+        });
+        CurrentGPUInfo.value = GPUListData;
+        GPUProcessData.value = get(newData, "nvidia.gpu_processes", []);
 
         if (ChartHistoryData.value.length > maxHistory) {
-            ChartHistoryData.value.shift()
+            ChartHistoryData.value.shift();
         }
 
         GPUList.value = GPUListData.map((item, index) => {
-            return pick(item, ['device_id', 'bus_id', 'name'])
+            return pick(item, ["device_id", "bus_id", "name"]);
         });
-    }
-})
+
+        // 更新Ollama数据
+        if (get(newData, "ollama.status")) {
+            OllamaPSList.value = get(newData, "ollama.data.models", []);
+        }
+    };
+});
 
 const customToFix = (value, fixed) => {
     const fixStr = value.toFixed(fixed);
-    return fixStr.replace(/\.0+$/, '')
-}
+    return fixStr.replace(/\.0+$/, "");
+};
 
 const metricMap = {
     temperature: {
-        key: 'temperature',
-        name: '温度',
+        key: "temperature",
+        name: "温度",
         proc: (info) => {
             return info.temperature;
         },
-        unit: '℃',
+        unit: "℃",
     },
     usaged: [
         {
-            key: 'mem_used',
-            name: '显存使用率',
+            key: "mem_used",
+            name: "显存使用率",
             proc: (info) => {
                 return (info.mem_used / info.mem_total) * 100;
             },
-            unit: '%',
+            unit: "%",
         },
         {
-            key: 'gpu_used',
-            name: 'GPU使用率',
+            key: "gpu_used",
+            name: "GPU使用率",
             proc: (info) => {
                 return info.gpu_used;
             },
-            unit: '%',
-        }
+            unit: "%",
+        },
     ],
     power_usage: {
-        key: 'power_usage',
-        name: '功耗',
+        key: "power_usage",
+        name: "功耗",
         proc: (info) => {
             return info.power_usage;
         },
-        unit: 'W',
+        unit: "W",
+    },
+    power_limit: {
+        key: "power_limit",
+        name: "功耗",
+        proc: (info) => {
+            return info.power_limit;
+        },
+        unit: "W",
+    },
+    mem_used: {
+        key: "mem_used",
+        name: "显存占用",
+        proc: (info) => {
+            return info.mem_used;
+        },
+        unit: "MB",
+    },
+    mem_total: {
+        key: "mem_total",
+        name: "总显存",
+        proc: (info) => {
+            return info.mem_total;
+        },
+        unit: "MB",
+    },
+};
+
+function formatBytes(bytes, decimals = 1, base = 1024) {
+    if (bytes === 0) return '0 B';
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    let value = bytes;
+    let unitIndex = 0;
+
+    while (value >= base && unitIndex < units.length - 1) {
+        value /= base;
+        unitIndex += 1;
     }
+
+    // 四舍五入并保留指定小数位
+    return `${value.toFixed(decimals)} ${units[unitIndex]}`;
 }
 
-const getCurrentValue = (metric) => {
-    let currentVal = '';
-    try {
-        const gpuInfo = ChartHistoryData.value[0].list.find(item => item.device_id === GPUList.value[gpuIndex].device_id);
-        currentVal = metric.proc(gpuInfo);
-    } catch (error) {}
+const handleKillProcess = (pid) => {
+
 }
+
+const getCurrentValue = (metric, gpuIndex) => {
+    let currentVal = "";
+    try {
+        const gpuInfo = CurrentGPUInfo.value.find(
+            (item) => item.device_id === GPUList.value[gpuIndex].device_id
+        );
+        currentVal = metric.proc(gpuInfo);
+    } catch (error) { }
+    return customToFix(currentVal);
+};
 
 const getChartOption = (gpuIndex, metricKey) => {
-   
     const metricsItem = metricMap[metricKey];
     if (!metricsItem) return {};
     let metrics = metricsItem;
-    if (!isArray(metricsItem)){
+    if (!isArray(metricsItem)) {
         metrics = [metricsItem];
     }
     return {
         tooltip: {
-            trigger: 'axis',
+            trigger: "axis",
             formatter: function (params) {
-                return metrics.map((metric, index) => {
-                    const args = params[index].value;
-                    var date = new Date(args[0]* 1000) ;
-                    return `${dayjs(date).format('YYYY-MM-DD HH:mm:ss')}<br /><strong>${metric.name}</strong>：${customToFix(args[1])} ${metric.unit || ''}`;
-                }).join('<br />');
+                return metrics
+                    .map((metric, index) => {
+                        const args = params[index].value;
+                        var date = new Date(args[0] * 1000);
+                        return `${dayjs(date).format("YYYY-MM-DD HH:mm:ss")}<br /><strong>${metric.name
+                            }</strong>：${customToFix(args[1])} ${metric.unit || ""}`;
+                    })
+                    .join("<br />");
             },
             axisPointer: {
-                animation: false
-            }
+                animation: false,
+            },
         },
-        legend: { data: metrics.map(metric => metric.name) },
+        legend:
+            metrics.length > 1
+                ? { data: metrics.map((metric) => metric.name) }
+                : false,
         xAxis: {
-            type: 'time',
+            type: "time",
             splitLine: {
-                show: false
+                show: false,
             },
             axisLabel: {
                 formatter: function (value) {
                     // 将时间戳转换为日期字符串
-                    return dayjs(value*1000).format('HH:mm:ss');
-                }
+                    return dayjs(value * 1000).format("HH:mm:ss");
+                },
             },
         },
         yAxis: metrics.map((metric) => ({
-            type: 'value',
-            boundaryGap: [0, '100%'],
+            type: "value",
+            boundaryGap: [0, "100%"],
             splitLine: {
-                show: false
+                show: false,
             },
-            name: `${metric.name} (单位：${metric.unit || ''}）`,
-            ...(metric.unit === '%' ? {max: 100, min: 0} : {}),
+            name: `${metric.name} (${metric.unit || ""}）`,
+            ...(metric.unit === "%" ? { max: 100, min: 0 } : {}),
         })),
         series: metrics.map((metric) => ({
             name: metric.name,
-            type: 'line',
+            type: "line",
             showSymbol: false,
-            data: ChartHistoryData.value.map(record => {
-                const gpuInfo = record.list.find(item => item.device_id === GPUList.value[gpuIndex].device_id);
+            data: ChartHistoryData.value.map((record) => {
+                const gpuInfo = record.list.find(
+                    (item) => item.device_id === GPUList.value[gpuIndex].device_id
+                );
                 return {
                     name: metric.name,
                     value: [record.timestamp, metric.proc(gpuInfo)],
                 };
-            })
+            }),
         })),
-    }
-}
+    };
+};
 </script>
 
 <template>
-    <div class="monitor-container">
-        <div v-for="(gpu, index) in GPUList" :key="index" class="gpu-panel">
-            <h3>GPU {{ index + 1 }}: {{ gpu.name }}</h3>
+    <el-row :gutter="200" class="monitor-container">
+        <el-col>
+            <el-card v-for="(gpu, index) in GPUList">
+                <template #header>
+                    <div class="card-header">
+                        <el-space>
+                            <el-tag>GPU {{ index + 1 }}</el-tag>
+                            <el-tag type="info">{{ gpu.bus_id }}</el-tag>
+                            <span>{{ gpu.name }}</span>
+                        </el-space>
+                    </div>
+                </template>
+                <el-row :gutter="20" :key="index">
+                    <el-col :span="8" :xl="6">
+                        <v-chart class="chart" :option="getChartOption(index, 'temperature')"
+                            :update-options="{ notMerge: true }" autoresize />
+                    </el-col>
+                    <el-col :span="8" :xl="12">
+                        <v-chart class="chart" :option="getChartOption(index, 'usaged')"
+                            :update-options="{ notMerge: true }" autoresize />
+                    </el-col>
+                    <el-col :span="8" :xl="6">
+                        <v-chart class="chart" :option="getChartOption(index, 'power_usage')"
+                            :update-options="{ notMerge: true }" autoresize />
+                    </el-col>
+                </el-row>
+                <template #footer>
+                    <el-descriptions title="当前数据">
+                        <el-descriptions-item :label="metricMap.temperature.name">
+                            {{ getCurrentValue(metricMap.temperature, index) }}
+                            {{ metricMap.temperature.unit }}
+                        </el-descriptions-item>
+                        <el-descriptions-item :label="metricMap.usaged[0].name">
+                            {{ getCurrentValue(metricMap.usaged[0], index) }}
+                            {{ metricMap.usaged[0].unit }}
+                        </el-descriptions-item>
+                        <el-descriptions-item :label="metricMap.usaged[1].name">
+                            {{ getCurrentValue(metricMap.usaged[1], index) }}
+                            {{ metricMap.usaged[1].unit }}
+                        </el-descriptions-item>
+                        <el-descriptions-item :label="metricMap.power_usage.name">
+                            {{ getCurrentValue(metricMap.power_usage, index) }}
+                            {{ metricMap.power_usage.unit }} /
+                            {{ getCurrentValue(metricMap.power_limit, index) }}
+                            {{ metricMap.power_limit.unit }}
+                        </el-descriptions-item>
+                        <el-descriptions-item :label="metricMap.mem_used.name">
+                            {{ getCurrentValue(metricMap.mem_used, index) }}
+                            {{ metricMap.mem_used.unit }} /
+                            {{ getCurrentValue(metricMap.mem_total, index) }}
+                            {{ metricMap.mem_total.unit }}
+                        </el-descriptions-item>
+                    </el-descriptions>
+                    <el-table :data="GPUProcessData" style="width: 100%">
+                        <el-table-column prop="bus_id" label="总线ID" width="180">
+                            <template #default="scope">
+                                <el-tag type="info">{{ scope.row.bus_id }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="pid" label="进程ID" width="180" />
+                        <el-table-column prop="name" label="进程名称" />
+                        <el-table-column label="显存占用">
+                            <template #default="scope">
+                                {{ scope.row.mem_used }} MB
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="Operations">
+                            <template #default="scope">
+                                <el-button size="small" type="danger" @click="handleKillProcess(scope.row.pid)">
+                                    结束进程
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </template>
+            </el-card>
+        </el-col>
+        <el-col style="margin-top:20px">
+            <el-card>
+                <template #header>
+                    <div class="card-header">
+                        Ollama 进程管理
+                    </div>
+                </template>
+                <template #default>
+                    <el-table :data="OllamaPSList" style="width: 100%">
+                        <el-table-column prop="bus_id" label="Hash" width="150">
+                            <template #default="scope">
+                                <el-tag type="info">{{ scope.row.digest.substring(0, 8) }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="name" label="模型名称"/>
+                        <el-table-column label="资源占用 (GPU/CPU)">
+                            <template #default="scope">
+                                {{ formatBytes(scope.row.size_vram) }}
+                                <span v-if="scope.row.size - scope.row.size_vram > 0"> / {{
+                                    formatBytes(scope.row.size -
+                                        scope.row.size_vram) }}</span>
 
-            <div class="chart-container">
-                <v-chart class="chart" :option="getChartOption(index, 'usaged')" :update-options="{ notMerge: true }" autoresize />
-                <v-chart class="chart" :option="getChartOption(index, 'temperature')" :update-options="{ notMerge: true }" autoresize />
-                <v-chart class="chart" :option="getChartOption(index, 'power_usage')" :update-options="{ notMerge: true }" autoresize />
-            </div>
-
-            <div class="processes">
-                <div class="process" v-for="(proc, pIndex) in gpu.processes" :key="pIndex">
-                    <span class="pid">{{ proc.pid }}</span>
-                    <span class="name">{{ proc.name }}</span>
-                    <span class="memory">{{ proc.memory_used }} MB</span>
-                </div>
-            </div>
-        </div>
-    </div>
+                                ( {{ (scope.row.size_vram / scope.row.size * 100).toFixed(0) }}% GPU
+                                <span v-if="scope.row.size - scope.row.size_vram > 0"> / {{
+                                    ((scope.row.size - scope.row.size_vram) / scope.row.size * 100).toFixed(0) }}%
+                                    CPU</span>)
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="size" label="过期时间" width="200">
+                            <template #default="scope">
+                                <el-tag type="info">{{ dayjs(scope.row.expires_at).format('YYYY-MM-DD HH:mm:ss')
+                                    }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="Operations">
+                            <template #default="scope">
+                                <el-button size="small" type="danger" @click="handleKillProcess(scope.row.pid)">
+                                    停止
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </template>
+            </el-card>
+        </el-col>
+    </el-row>
 </template>
 
 <style scoped>
@@ -196,43 +378,7 @@ const getChartOption = (gpuIndex, metricKey) => {
     padding: 20px;
 }
 
-.gpu-panel {
-    margin: 20px;
-    padding: 20px;
-    border: 1px solid #eee;
-    border-radius: 8px;
-}
-
-.chart-container {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-}
-
 .chart {
     height: 300px;
-}
-
-.processes {
-    margin-top: 20px;
-}
-
-.process {
-    display: flex;
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-}
-
-.pid {
-    width: 80px;
-}
-
-.name {
-    flex: 1;
-}
-
-.memory {
-    width: 100px;
-    text-align: right;
 }
 </style>

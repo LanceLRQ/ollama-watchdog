@@ -10,7 +10,7 @@ type GPUInfo struct {
 	GPUUsed     uint64  `json:"gpu_used"`    // GPU的利用率，表示当前GPU的使用百分比
 	Temperature uint64  `json:"temperature"` // GPU当前的温度
 	PowerUsage  float64 `json:"power_usage"` // GPU当前的当前功耗
-	PowerLimit  float64 `json:"processes"`   // GPU当前的功耗限制
+	PowerLimit  float64 `json:"power_limit"`   // GPU当前的功耗限制
 }
 
 type GPUProcess struct {
