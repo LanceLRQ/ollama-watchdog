@@ -1,57 +1,13 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <title>GPU Monitor</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        .gpu-card { 
-            border: 1px solid #ccc; 
-            padding: 15px; 
-            margin: 10px; 
-            border-radius: 5px;
-            background: #f9f9f9;
-        }
-        .progress-bar {
-            height: 20px;
-            background: #eee;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .progress {
-            height: 100%;
-            background: #4CAF50;
-            transition: width 0.3s ease;
-        }
-    </style>
-</head>
-<body>
-    <h1>GPU Monitor</h1>
-    <div id="gpu-container"></div>
-
-    <script>
-        const ws = new WebSocket('ws://' + window.location.host + '/ws');
-        const container = document.getElementById('gpu-container');
-
-        ws.onmessage = function(event) {
-            const gpus = JSON.parse(event.data);
-            container.innerHTML = '';
-            
-            gpus.forEach((gpu, index) => {
-                const card = document.createElement('div');
-                card.className = 'gpu-card';
-                card.innerHTML = `
-                    <h3>GPU ${index + 1}: ${gpu.name}</h3>
-                    <p>Temperature: ${gpu.temp}°C</p>
-                    <p>Memory: ${gpu.mem_used} MB / ${gpu.mem_total} MB</p>
-                    <div class="progress-bar">
-                        <div class="progress" style="width: ${gpu.mem_util}%"></div>
-                    </div>
-                    <p>GPU Utilization: ${gpu.gpu_util.toFixed(1)}%</p>
-                    <p>Last Update: ${new Date(gpu.timestamp * 1000).toLocaleTimeString()}</p>
-                `;
-                container.appendChild(card);
-            });
-        };
-    </script>
-</body>
+<html lang="">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vite App</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>
