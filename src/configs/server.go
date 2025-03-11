@@ -11,6 +11,7 @@ type ServerConfigStruct struct {
 	Listen        string `yaml:"listen" json:"listen"`
 	OllamaListen  string `yaml:"ollama_listen" json:"ollama_listen"`
 	NvidiaSmiPath string `yaml:"nvidia_smi_path" json:"nvidia_smi_path"`
+	GPUSampleDB   string `yaml:"gpu_sample_db" json:"gpu_sample_db"`
 }
 
 func GetDefaultServerConfig() ServerConfigStruct {
@@ -18,6 +19,7 @@ func GetDefaultServerConfig() ServerConfigStruct {
 		Listen:        "0.0.0.0:23333",
 		OllamaListen:  "http://127.0.0.1:11434",
 		NvidiaSmiPath: "/usr/bin/nvidia-smi",
+		GPUSampleDB:   ".gpu_sample",
 	}
 }
 

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -8,10 +9,11 @@ import (
 
 	"github.com/LanceLRQ/ollama-watchdog/models"
 	"github.com/LanceLRQ/ollama-watchdog/utils"
+	"github.com/dgraph-io/badger/v4"
 )
 
 func NvidiaSMIWatcher(callback func(models.NvidiaSMIResponse)) {
-	ticker := time.NewTicker(time.Duration(0.5 * float64(time.Second)))
+	ticker := time.NewTicker(time.Duration(1 * float64(time.Second)))
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -31,6 +33,25 @@ func NvidiaSMIWatcher(callback func(models.NvidiaSMIResponse)) {
 			GPUProcesses: gpuProcessesInfo,
 			Timestamp:    time.Now().Unix(),
 		})
+	}
+}
+
+func SaveSampleToDB(GPUSampleDB *badger.DB, nvidiaResp models.NvidiaSMIResponse) {
+	nvidiaResp.GPUProcesses = nil
+	jsonData, err := json.Marshal(nvidiaResp)
+	if err != nil {
+		fmt.Printf("JSON marshal error:%s\n", err.Error())
+		return
+	}
+	err = GPUSampleDB.Update(func(txn *badger.Txn) error {
+		err := txn.Set([]byte(fmt.Sprintf("gpu:%d", time.Now().Unix())), jsonData)
+		if err != nil {
+			return fmt.Errorf("failed to record gpu sample: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("%s\n", err.Error())
 	}
 }
 

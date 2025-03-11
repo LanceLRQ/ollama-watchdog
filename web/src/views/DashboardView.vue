@@ -13,6 +13,7 @@ import VChart from "vue-echarts";
 import { get, pick, isArray } from "lodash";
 import { DefaultServerSettings } from "../models/server";
 import dayjs from "dayjs";
+import axios from "axios";
 
 use([
     CanvasRenderer,
@@ -23,9 +24,14 @@ use([
     LegendComponent,
 ]);
 
+const wsWorker = ref(null)
+const wsReconnectAttempts = ref(0);
+const wsMaxReconnectAttempts = ref(50);
+
+
 const ChartHistoryData = ref([]);
 const GPUProcessData = ref([]);
-const maxHistory = 60; // 保留60个数据点（1分钟）
+const maxHistory = ref(120); // 保留60个数据点（1分钟）
 const GPUList = ref([]);
 const CurrentGPUInfo = ref([]);
 const OllamaPSList = ref([]);
@@ -49,14 +55,45 @@ const loadSettingsFromLocalStorage = () => {
     return settings;
 };
 
-onMounted(() => {
-    loadSettingsFromLocalStorage();
-    const ws = new WebSocket(
-        `${location.protocol === "https" ? "wss" : "ws"}://${serverSettings.value.apiHost
-        }${serverSettings.value.apiBasePath}/realtime`
-    );
 
-    ws.onmessage = (event) => {
+
+const connectWebSocket = () => {
+    const url = `${location.protocol === "https" ? "wss" : "ws"}://${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/realtime`;
+    console.log(url)
+    wsWorker.value = new WebSocket(url);
+
+
+    let timeoutId;
+
+    // 设置超时定时器
+    timeoutId = setTimeout(() => {
+        console.log('WebSocket 连接超时');
+        wsWorker.value.close(); // 关闭连接
+    }, 2000);
+
+    // WebSocket 打开事件
+    wsWorker.value.onopen = () => {
+        clearTimeout(timeoutId); 
+        wsReconnectAttempts.value = 0; // 重置重连次数
+        console.log('WebSocket 连接成功');
+    };
+
+    // WebSocket 关闭事件
+    wsWorker.value.onclose = () => {
+        clearTimeout(timeoutId); 
+        console.log('WebSocket 连接关闭');
+        handleReconnect();
+    };
+
+    // WebSocket 错误事件
+    wsWorker.value.onerror = (error) => {
+        wsWorker.value.close(); // 关闭连接
+        clearTimeout(timeoutId); 
+        console.error('WebSocket 错误:', error);
+        handleReconnect();
+    };
+
+    wsWorker.value.onmessage = (event) => {
         const newData = JSON.parse(event.data);
 
         // 更新历史数据
@@ -68,7 +105,7 @@ onMounted(() => {
         CurrentGPUInfo.value = GPUListData;
         GPUProcessData.value = get(newData, "nvidia.gpu_processes", []);
 
-        if (ChartHistoryData.value.length > maxHistory) {
+        if (ChartHistoryData.value.length > maxHistory.value) {
             ChartHistoryData.value.shift();
         }
 
@@ -81,6 +118,43 @@ onMounted(() => {
             OllamaPSList.value = get(newData, "ollama.data.models", []);
         }
     };
+}
+
+const handleReconnect = () => {
+    if (wsReconnectAttempts.value < wsMaxReconnectAttempts.value) {
+        wsReconnectAttempts.value++;
+        setTimeout(() => {
+            console.log(`尝试重连，第 ${wsReconnectAttempts.value} 次`);
+            connectWebSocket();
+        }, 5000);
+    } else {
+        console.log('已达到最大重连次数，停止重连');
+    }
+}
+
+// 加载GPU采样历史数据
+const LoadGPUSampleHistoryData = (callback) => {
+    axios.get(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/nvidia/history?range=${maxHistory.value}`)
+        .then(response => {
+            const resp = response.data;
+            if (resp.status) {
+                const list =  get(resp, 'data', []);
+                list.forEach(item => {
+                    ChartHistoryData.value.push( {
+                        list: get(item, 'gpu_info', []),
+                        timestamp: get(item, "timestamp", 0),
+                    })
+                });
+            }
+            callback()
+        })
+}
+
+onMounted(() => {
+    loadSettingsFromLocalStorage();
+    LoadGPUSampleHistoryData(() => {
+        connectWebSocket();
+    });
 });
 
 const customToFix = (value, fixed) => {
@@ -339,7 +413,7 @@ const getChartOption = (gpuIndex, metricKey) => {
                                 <el-tag type="info">{{ scope.row.digest.substring(0, 8) }}</el-tag>
                             </template>
                         </el-table-column>
-                        <el-table-column prop="name" label="模型名称"/>
+                        <el-table-column prop="name" label="模型名称" />
                         <el-table-column label="资源占用 (GPU/CPU)">
                             <template #default="scope">
                                 {{ formatBytes(scope.row.size_vram) }}
