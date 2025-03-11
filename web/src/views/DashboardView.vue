@@ -9,6 +9,10 @@ import {
     TooltipComponent,
     TitleComponent,
 } from "echarts/components";
+import {
+    ElMessage,
+    ElMessageBox
+} from 'element-plus';
 import VChart from "vue-echarts";
 import { get, pick, isArray } from "lodash";
 import { DefaultServerSettings } from "../models/server";
@@ -73,14 +77,14 @@ const connectWebSocket = () => {
 
     // WebSocket 打开事件
     wsWorker.value.onopen = () => {
-        clearTimeout(timeoutId); 
+        clearTimeout(timeoutId);
         wsReconnectAttempts.value = 0; // 重置重连次数
         console.log('WebSocket 连接成功');
     };
 
     // WebSocket 关闭事件
     wsWorker.value.onclose = () => {
-        clearTimeout(timeoutId); 
+        clearTimeout(timeoutId);
         console.log('WebSocket 连接关闭');
         handleReconnect();
     };
@@ -88,7 +92,7 @@ const connectWebSocket = () => {
     // WebSocket 错误事件
     wsWorker.value.onerror = (error) => {
         wsWorker.value.close(); // 关闭连接
-        clearTimeout(timeoutId); 
+        clearTimeout(timeoutId);
         console.error('WebSocket 错误:', error);
         handleReconnect();
     };
@@ -138,9 +142,9 @@ const LoadGPUSampleHistoryData = (callback) => {
         .then(response => {
             const resp = response.data;
             if (resp.status) {
-                const list =  get(resp, 'data', []);
+                const list = get(resp, 'data', []);
                 list.forEach(item => {
-                    ChartHistoryData.value.push( {
+                    ChartHistoryData.value.push({
                         list: get(item, 'gpu_info', []),
                         timestamp: get(item, "timestamp", 0),
                     })
@@ -156,6 +160,7 @@ onMounted(() => {
         connectWebSocket();
     });
 });
+
 
 const customToFix = (value, fixed) => {
     const fixStr = value.toFixed(fixed);
@@ -240,7 +245,73 @@ function formatBytes(bytes, decimals = 1, base = 1024) {
 }
 
 const handleKillProcess = (pid) => {
+    ElMessageBox.confirm(
+        `确定要结束进程 ${pid} 吗？`,
+        'Warning',
+        {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+        }
+    )
+        .then(() => {
+            axios.post(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/kill`, {
+                type: 'process',
+                pid,
+            }).then((resp) => {
+                if (resp.data.status) {
+                    ElMessage({
+                        type: 'success',
+                        message: '结束进程成功',
+                    });
+                } else {
+                    ElMessage({
+                        type: 'error',
+                        message: '结束进程失败',
+                    });
+                    console.log(resp.data.message);
+                }
+            }).catch((error) => {
+                ElMessage.error('结束进程失败');
+                console.log(error);
+            });
+        })
+        .catch(() => { })
+}
 
+const handleOllamaKillProcess = (name) => {
+    ElMessageBox.confirm(
+        `确定要停止模型 ${name} 吗？`,
+        'Warning',
+        {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+        }
+    )
+        .then(() => {
+            axios.post(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/kill`, {
+                type: 'ollama',
+                name,
+            }).then((resp) => {
+                if (resp.data.status) {
+                    ElMessage({
+                        type: 'success',
+                        message: '停止模型成功',
+                    });
+                } else {
+                    ElMessage({
+                        type: 'error',
+                        message: '停止模型失败',
+                    });
+                    console.log(resp.data.message);
+                }
+            }).catch((error) => {
+                ElMessage.error('停止模型失败');
+                console.log(error);
+            });
+        })
+        .catch(() => { })
 }
 
 const getCurrentValue = (metric, gpuIndex) => {
@@ -388,13 +459,13 @@ const getChartOption = (gpuIndex, metricKey) => {
                                 {{ scope.row.mem_used }} MB
                             </template>
                         </el-table-column>
-                        <el-table-column label="Operations">
+                        <!-- <el-table-column label="Operations">
                             <template #default="scope">
                                 <el-button size="small" type="danger" @click="handleKillProcess(scope.row.pid)">
                                     结束进程
                                 </el-button>
                             </template>
-                        </el-table-column>
+                        </el-table-column> -->
                     </el-table>
                 </template>
             </el-card>
@@ -430,12 +501,12 @@ const getChartOption = (gpuIndex, metricKey) => {
                         <el-table-column prop="size" label="过期时间" width="200">
                             <template #default="scope">
                                 <el-tag type="info">{{ dayjs(scope.row.expires_at).format('YYYY-MM-DD HH:mm:ss')
-                                    }}</el-tag>
+                                }}</el-tag>
                             </template>
                         </el-table-column>
-                        <el-table-column label="Operations">
+                        <el-table-column label="操作">
                             <template #default="scope">
-                                <el-button size="small" type="danger" @click="handleKillProcess(scope.row.pid)">
+                                <el-button size="small" type="danger" @click="handleOllamaKillProcess(scope.row.name)">
                                     停止
                                 </el-button>
                             </template>

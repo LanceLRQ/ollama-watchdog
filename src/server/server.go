@@ -108,26 +108,27 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 	})
 
 	app.Post("/api/kill", func(c *fiber.Ctx) error {
-		var data fiber.Map
+		data := new(struct {
+			Type string `form: "type"`
+			PID  int    `form: "pid"`
+			Name string `form: "name"`
+		})
 		if err := c.BodyParser(&data); err != nil {
 			return err
 		}
-		if data["type"] != nil && data["type"].(string) == "ollama" {
-			if data["name"] != nil {
-				if name, ok := data["name"].(string); ok {
-					err := utils.TerminateOllamaProcess(name)
-					if err != nil {
-						return c.JSON(fiber.Map{"status": false, "message": "Failed to terminate process"})
-					}
-					return c.JSON(fiber.Map{"status": true})
+		if data.Type == "ollama" {
+			if data.Name != "" {
+				err := utils.TerminateOllamaProcess(data.Name)
+				if err != nil {
+					return c.JSON(fiber.Map{"status": false, "message": "Failed to terminate process"})
 				}
+				return c.JSON(fiber.Map{"status": true})
 			}
 			return c.JSON(fiber.Map{"status": false, "message": "ollama model name is required"})
-		} else {
-			if data["pid"] != nil {
-				pid := data["pid"].(int)
+		} else if data.Type == "process" {
+			if data.PID != 0 {
 
-				err := utils.TerminateProcess(pid)
+				err := utils.TerminateProcess(data.PID)
 				if err != nil {
 					return c.JSON(fiber.Map{"status": false, "message": "Failed to terminate process"})
 				}
@@ -136,6 +137,7 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 				return c.JSON(fiber.Map{"status": false, "message": "pid is required"})
 			}
 		}
+		return c.JSON(fiber.Map{"status": false, "message": "type is not supported"})
 	})
 
 	app.Get("/api/ollama/*", func(c *fiber.Ctx) error {
