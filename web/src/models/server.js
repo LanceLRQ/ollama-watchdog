@@ -1,4 +1,4 @@
 export const DefaultServerSettings = {
-    apiHost: 'localhost:23333',
+    apiHost: location.hostname + ':' + (location.port || '3000'),
     apiBasePath: '/api',
 };

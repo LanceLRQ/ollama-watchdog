@@ -18,10 +18,11 @@ func CommandEntry() {
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "config",
-				Aliases: []string{"c"},
-				Value:   "server.yaml",
-				Usage:   "配置文件路径",
+				Name:        "config",
+				Aliases:     []string{"c"},
+				Value:       configs.GetDefaultServerConfigPath(),
+				Usage:       "配置文件路径",
+				DefaultText: configs.GetDefaultServerConfigPath(),
 			},
 		},
 		Action: func(c *cli.Context) error {

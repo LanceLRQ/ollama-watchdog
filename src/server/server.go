@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/LanceLRQ/ollama-watchdog/configs"
@@ -12,6 +13,7 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/proxy"
 	"github.com/gofiber/websocket/v2"
 )
@@ -140,7 +142,23 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 		return c.JSON(fiber.Map{"status": false, "message": "type is not supported"})
 	})
 
-	app.Get("/api/ollama/*", func(c *fiber.Ctx) error {
+	app.Post("/api/reboot", func(c *fiber.Ctx) error {
+		err := utils.RebootSystem()
+		if err != nil {
+			return c.JSON(fiber.Map{"status": false, "message": "Failed to reboot system"})
+		}
+		return c.JSON(fiber.Map{"status": true})
+	})
+
+	app.Post("/api/ollama/restart", func(c *fiber.Ctx) error {
+		err := utils.RestartServiceProcess()
+		if err != nil {
+			return c.JSON(fiber.Map{"status": false, "message": "Failed to restart ollama"})
+		}
+		return c.JSON(fiber.Map{"status": true})
+	})
+
+	app.Get("/api/ollama/api/*", func(c *fiber.Ctx) error {
 		ollamaApiPath := c.Params("*")
 		if err := proxy.DoDeadline(c, cfg.OllamaListen+"/api/"+ollamaApiPath, time.Now().Add(time.Minute)); err != nil {
 			return err
@@ -151,7 +169,11 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 	})
 
 	// 静态文件服务
-	// app.Static("/", "../web/dist")
+	app.Use("/", filesystem.New(filesystem.Config{
+		Root:       http.FS(WebsiteAssetsEmbed),
+		PathPrefix: "web",
+		Browse:     true,
+	}))
 
 	app.Listen(cfg.Listen)
 

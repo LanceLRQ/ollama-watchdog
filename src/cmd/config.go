@@ -16,8 +16,9 @@ func ConfigCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:    "config",
 				Aliases: []string{"c"},
-				Value:   "server.yaml",
+				Value:   configs.GetDefaultServerConfigPath(),
 				Usage:   "配置文件路径",
+				DefaultText: configs.GetDefaultServerConfigPath(),
 			},
 		},
 		Subcommands: []*cli.Command{

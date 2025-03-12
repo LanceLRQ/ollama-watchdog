@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -14,12 +15,32 @@ type ServerConfigStruct struct {
 	GPUSampleDB   string `yaml:"gpu_sample_db" json:"gpu_sample_db"`
 }
 
+func GetDefaulfAppDataPath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	appPath := fmt.Sprintf("%s/ollama-watchdog", dir)
+	if err := os.MkdirAll(appPath, 0o755); err != nil {
+		return ""
+	}
+	return appPath
+}
+
+func GetDefaultServerConfigPath() string {
+	return fmt.Sprintf("%s/server.yaml", GetDefaulfAppDataPath())
+}
+
+func GetDefaultDBConfigPath() string {
+	return fmt.Sprintf("%s/.gpu_sample", GetDefaulfAppDataPath())
+}
+
 func GetDefaultServerConfig() ServerConfigStruct {
 	return ServerConfigStruct{
 		Listen:        "0.0.0.0:23333",
 		OllamaListen:  "http://127.0.0.1:11434",
 		NvidiaSmiPath: "/usr/bin/nvidia-smi",
-		GPUSampleDB:   ".gpu_sample",
+		GPUSampleDB:   GetDefaultDBConfigPath(),
 	}
 }
 

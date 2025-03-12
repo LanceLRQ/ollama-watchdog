@@ -25,3 +25,4 @@ go.work.sum
 .env
 
 .gpu_sample/
+web_dist/

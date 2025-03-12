@@ -16,6 +16,7 @@ import {
 import VChart from "vue-echarts";
 import { get, pick, isArray } from "lodash";
 import { DefaultServerSettings } from "../models/server";
+import { loadSettingsFromLocalStorage } from '../utils/config';
 import dayjs from "dayjs";
 import axios from "axios";
 
@@ -28,6 +29,7 @@ use([
     LegendComponent,
 ]);
 
+const inited = ref(false)
 const wsWorker = ref(null)
 const wsReconnectAttempts = ref(0);
 const wsMaxReconnectAttempts = ref(50);
@@ -41,25 +43,6 @@ const CurrentGPUInfo = ref([]);
 const OllamaPSList = ref([]);
 
 const serverSettings = ref({ ...DefaultServerSettings });
-
-const loadSettingsFromLocalStorage = () => {
-    // 从本地存储加载设置
-    const settings = localStorage.getItem("watchdog_api_settings");
-    if (settings) {
-        try {
-            serverSettings.value = Object.assign(
-                {},
-                DefaultServerSettings,
-                JSON.parse(settings)
-            );
-        } catch (e) {
-            console.error("Error parsing settings:", e);
-        }
-    }
-    return settings;
-};
-
-
 
 const connectWebSocket = () => {
     const url = `${location.protocol === "https" ? "wss" : "ws"}://${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/realtime`;
@@ -155,8 +138,9 @@ const LoadGPUSampleHistoryData = (callback) => {
 }
 
 onMounted(() => {
-    loadSettingsFromLocalStorage();
+    serverSettings.value = loadSettingsFromLocalStorage();
     LoadGPUSampleHistoryData(() => {
+        inited.value = true;
         connectWebSocket();
     });
 });
@@ -314,6 +298,69 @@ const handleOllamaKillProcess = (name) => {
         .catch(() => { })
 }
 
+const handleRestartOllamaService = (name) => {
+    ElMessageBox.confirm(
+        `确定要重启Ollama服务器操作系统吗？`,
+        'Warning',
+        {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+        }
+    )
+        .then(() => {
+            axios.post(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/ollama/restart`).then((resp) => {
+                if (resp.data.status) {
+                    ElMessage({
+                        type: 'success',
+                        message: '重启指令发送成功',
+                    });
+                } else {
+                    ElMessage({
+                        type: 'error',
+                        message: '重启指令发送失败',
+                    });
+                    console.log(resp.data.message);
+                }
+            }).catch((error) => {
+                ElMessage.error('重启指令发送失败');
+                console.log(error);
+            });
+        })
+        .catch(() => { })
+}
+const handleReboot = (name) => {
+    ElMessageBox.confirm(
+        `确定要重启服务器吗？`,
+        'Warning',
+        {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+        }
+    )
+        .then(() => {
+            axios.post(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/reboot`).then((resp) => {
+                if (resp.data.status) {
+                    ElMessage({
+                        type: 'success',
+                        message: '重启指令发送成功',
+                    });
+                } else {
+                    ElMessage({
+                        type: 'error',
+                        message: '重启指令发送失败',
+                    });
+                    console.log(resp.data.message);
+                }
+            }).catch((error) => {
+                ElMessage.error('重启指令发送失败');
+                console.log(error);
+            });
+        })
+        .catch(() => { })
+}
+
 const getCurrentValue = (metric, gpuIndex) => {
     let currentVal = "";
     try {
@@ -336,14 +383,14 @@ const getChartOption = (gpuIndex, metricKey) => {
         tooltip: {
             trigger: "axis",
             formatter: function (params) {
-                return metrics
+                var date = new Date(get(params, '0.value.0', 0) * 1000);
+                return `${dayjs(date).format("YYYY-MM-DD HH:mm:ss")}<br />${metrics
                     .map((metric, index) => {
+                        if (!params[index]) return '';
                         const args = params[index].value;
-                        var date = new Date(args[0] * 1000);
-                        return `${dayjs(date).format("YYYY-MM-DD HH:mm:ss")}<br /><strong>${metric.name
-                            }</strong>：${customToFix(args[1])} ${metric.unit || ""}`;
+                        return `<strong>${metric.name}</strong>：${customToFix(args[1])} ${metric.unit || ""}`;
                     })
-                    .join("<br />");
+                    .join("<br />")}`;
             },
             axisPointer: {
                 animation: false,
@@ -393,8 +440,20 @@ const getChartOption = (gpuIndex, metricKey) => {
 </script>
 
 <template>
-    <el-row :gutter="200" class="monitor-container">
+    <el-row :gutter="20" v-if="inited" class="monitor-container">
         <el-col>
+            <el-card>
+                <template #header>
+                    操作面板
+                </template>
+                <el-space>
+                    <el-button type="danger" @click="handleReboot">重启操作系统</el-button>
+                    <el-button type="primary" @click="handleRestartOllamaService">重启ollama服务</el-button>
+        
+                </el-space>
+            </el-card>
+        </el-col>
+        <el-col style="margin-top:20px">
             <el-card v-for="(gpu, index) in GPUList">
                 <template #header>
                     <div class="card-header">
@@ -516,6 +575,9 @@ const getChartOption = (gpuIndex, metricKey) => {
             </el-card>
         </el-col>
     </el-row>
+    <div class="monitor-container" v-else>
+        <el-skeleton :rows="5" animated />
+    </div>
 </template>
 
 <style scoped>
