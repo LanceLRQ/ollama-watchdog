@@ -49,6 +49,7 @@ jobs:
         if: github.event_name == 'release'
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
+          asset_name: ollama-watcher-linux-amd64
           file: src/ollama-watcher-linux-amd64
           tag: ${{ github.ref }}
           file_glob: true
