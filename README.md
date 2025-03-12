@@ -13,7 +13,7 @@ Ollama Watchdog 是一个基于 Vue 3 和 Go 语言开发的项目，主要用�
 1. 克隆项目到本地：
    ```bash
    git clone https://github.com/LanceLRQ/ollama-watchdog.git
-   cd ollama-watchdog
+   cd ollama-watchdog/web
    ```
 
 2. 安装依赖：

@@ -1,0 +1,77 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "22"
+      - name: Install Node.js dependencies
+        run: npm install
+        working-directory: ./web
+
+      - name: Build Vue3 project
+        run: npm run build
+        working-directory: ./web
+
+      - name: Copy web/dist to src/server/dist
+        run: |
+          mkdir -p src/server/dist
+          cp -r web/dist/* src/server/dist/
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Build Go project
+        run: |
+          cd src
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o ollama-watcher .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ollama-watcher-linux-amd64
+          path: src/ollama-watcher
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ollama-watcher-linux-amd64
+          path: dist
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/ollama-watcher-linux-amd64
+          asset_name: ollama-watcher-linux-amd64
+          asset_content_type: application/octet-stream
