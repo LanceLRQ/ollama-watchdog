@@ -47,24 +47,25 @@ jobs:
           name: ollama-watcher-linux-amd64
           path: src/ollama-watcher-linux-amd64
 
-  release:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ollama-watcher-linux-amd64
-          path: build/ollama-watcher-linux-amd64
-
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         if: github.event_name == 'release'
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/ollama-watcher-linux-amd64
+          file: src/ollama-watcher-linux-amd64
           tag: ${{ github.ref }}
           file_glob: true
+
+  # release:
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   steps:
+  #     - name: Download artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: ollama-watcher-linux-amd64
+  #         path: build/ollama-watcher-linux-amd64
+
 
       # - name: Get current date and time
       #   id: date
