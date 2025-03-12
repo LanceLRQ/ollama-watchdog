@@ -27,7 +27,7 @@ jobs:
         run: npm run build
         working-directory: ./web
 
-      - name: Copy web/dist to src/server/dist
+      - name: Copy web/dist to src/server/web
         run: |
           cp -r web/dist src/server/web
 
@@ -63,7 +63,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: comnoco/create-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
