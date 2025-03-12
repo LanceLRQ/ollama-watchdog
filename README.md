@@ -6,6 +6,22 @@ Ollama Watchdog 是一个基于 Vue 3 和 Go 语言开发的项目，主要用�
 
 项目前端使用 Vue 3 和 ECharts 进行数据可视化，后端使用 Go 语言进行数据处理和监控。
 
+## 运行演示
+
+![运行演示](./docs/demo.jpg)
+
+## 安装
+
+### curl
+```bash
+curl -sSL https://raw.githubusercontent.com/LanceLRQ/ollama-watchdog/main/install.sh | bash
+```
+
+### wget
+```bash
+wget -qO- https://raw.githubusercontent.com/LanceLRQ/ollama-watchdog/main/install.sh | bash
+```
+
 ## 安装与运行(开发)
 
 ### 前端

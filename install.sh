@@ -114,7 +114,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$BIN_PATH
+ExecStart=$BIN_PATH serve
 Restart=on-failure
 RestartSec=5
 StandardOutput=syslog
@@ -145,6 +145,7 @@ echo "服务已启动并设置为开机自启。"
 echo "你可以通过以下命令管理服务："
 echo "  sudo systemctl start $SERVICE_NAME    # 启动服务"
 echo "  sudo systemctl stop $SERVICE_NAME     # 停止服务"
+echo "  sudo systemctl enable $SERVICE_NAME   # 设置开机自启"
 echo "  sudo systemctl status $SERVICE_NAME   # 查看服务状态"
 echo "  sudo journalctl -u $SERVICE_NAME      # 查看服务日志"
 echo "你可以直接运行 '$BIN_NAME' 启动程序。"
