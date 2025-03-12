@@ -70,9 +70,9 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           release_name: |
-            ${{ 
+            ${{
               startsWith(github.ref, 'refs/tags/') && github.ref_name || 
-              'Release-' + env.CURRENT_DATE
+              format('Release-{0}', env.CURRENT_DATE)
             }}
           draft: false
           prerelease: false
