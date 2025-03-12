@@ -39,7 +39,7 @@ jobs:
       - name: Build Go project
         run: |
           cd src
-          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o ollama-watcher .
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o ollama-watcher-linux-amd64 .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
