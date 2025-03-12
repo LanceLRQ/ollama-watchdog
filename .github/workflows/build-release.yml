@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ollama-watcher-linux-amd64
-          path: src/ollama-watcher
+          path: src/ollama-watcher-linux-amd64
 
   release:
     runs-on: ubuntu-latest
@@ -55,33 +55,42 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ollama-watcher-linux-amd64
-          path: dist
+          path: build/ollama-watcher-linux-amd64
 
-      - name: Get current date and time
-        id: date
-        run: echo "CURRENT_DATE=$(date -u '+%Y-%m-%d-%H%M%S')" >> $GITHUB_ENV
-
-      - name: Create Release
-        id: create_release
-        uses: comnoco/create-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        if: github.event_name == 'release'
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: |
-            ${{
-              startsWith(github.ref, 'refs/tags/') && github.ref_name || 
-              format('Release-{0}', env.CURRENT_DATE)
-            }}
-          draft: false
-          prerelease: false
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/ollama-watcher-linux-amd64
+          tag: ${{ github.ref }}
+          file_glob: true
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/ollama-watcher-linux-amd64
-          asset_name: ollama-watcher-linux-amd64
-          asset_content_type: application/octet-stream
+      # - name: Get current date and time
+      #   id: date
+      #   run: echo "CURRENT_DATE=$(date -u '+%Y-%m-%d-%H%M%S')" >> $GITHUB_ENV
+
+      # - name: Create Release
+      #   id: create_release
+      #   uses: comnoco/create-release@v2
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     tag_name: ${{ github.ref_name }}
+      #     release_name: |
+      #       ${{
+      #         startsWith(github.ref, 'refs/tags/') && github.ref_name || 
+      #         format('Release-{0}', env.CURRENT_DATE)
+      #       }}
+      #     draft: false
+      #     prerelease: false
+
+      # - name: Upload Release Asset
+      #   uses: actions/upload-release-asset@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+      #     asset_path: build/ollama-watcher-linux-amd64
+      #     asset_name: ollama-watcher-linux-amd64
+      #     asset_content_type: application/octet-stream
