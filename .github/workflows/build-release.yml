@@ -2,20 +2,23 @@ name: Build and Release
 
 on:
   push:
+    branches:
+      - main # 监听 main 分支的更新
     tags:
-      - "v*"
+      - "v*" # 监听以 "v" 开头的 tag
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
+
       - name: Install Node.js dependencies
         run: npm install
         working-directory: ./web
@@ -30,7 +33,7 @@ jobs:
           cp -r web/dist/* src/server/dist/
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: "1.23"
 
@@ -40,7 +43,7 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o ollama-watcher .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ollama-watcher-linux-amd64
           path: src/ollama-watcher
@@ -50,10 +53,14 @@ jobs:
     needs: build
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ollama-watcher-linux-amd64
           path: dist
+
+      - name: Get current date and time
+        id: date
+        run: echo "CURRENT_DATE=$(date -u '+%Y-%m-%d-%H%M%S')" >> $GITHUB_ENV
 
       - name: Create Release
         id: create_release
@@ -61,8 +68,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
+          release_name: |
+            ${{ 
+              startsWith(github.ref, 'refs/tags/') && github.ref_name || 
+              'Release-' + env.CURRENT_DATE
+            }}
           draft: false
           prerelease: false
 
