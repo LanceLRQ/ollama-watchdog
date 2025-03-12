@@ -1,11 +1,9 @@
 name: Build and Release
 
 on:
+  release:
+    types: [published]
   push:
-    branches:
-      - main # 监听 main 分支的更新
-    tags:
-      - "v*" # 监听以 "v" 开头的 tag
 
 jobs:
   build:
