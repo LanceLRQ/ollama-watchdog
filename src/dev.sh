@@ -1,1 +1,1 @@
-go run -tags dev .
+go run -tags dev . $@

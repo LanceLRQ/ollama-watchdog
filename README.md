@@ -14,12 +14,12 @@ Ollama Watchdog 是一个基于 Vue 3 和 Go 语言开发的项目，主要用�
 
 ### curl
 ```bash
-curl -sSL https://raw.githubusercontent.com/LanceLRQ/ollama-watchdog/main/install.sh | sh
+sudo curl -sSL https://raw.githubusercontent.com/LanceLRQ/ollama-watchdog/main/install.sh | sh
 ```
 
 ### wget
 ```bash
-wget -qO- https://raw.githubusercontent.com/LanceLRQ/ollama-watchdog/main/install.sh | sh
+sudo wget -qO- https://raw.githubusercontent.com/LanceLRQ/ollama-watchdog/main/install.sh | sh
 ```
 
 ## 安装与运行(开发)

@@ -44,7 +44,8 @@ func SaveSampleToDB(GPUSampleDB *badger.DB, nvidiaResp models.NvidiaSMIResponse)
 		return
 	}
 	err = GPUSampleDB.Update(func(txn *badger.Txn) error {
-		err := txn.Set([]byte(fmt.Sprintf("gpu:%d", time.Now().Unix())), jsonData)
+		e := badger.NewEntry([]byte(fmt.Sprintf("gpu:%d", time.Now().Unix())), jsonData).WithTTL(time.Hour)
+		err := txn.SetEntry(e)
 		if err != nil {
 			return fmt.Errorf("failed to record gpu sample: %w", err)
 		}
