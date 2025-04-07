@@ -28,7 +28,6 @@ func RestartServiceProcess(typeName string, serviceName string) error {
 	if serviceName == "" {
 		serviceName = "ollama"
 	}
-	fmt.Printf("执行shell指令> %s %s %s", "systemctl", typeName, serviceName)
 	cmd := exec.Command("systemctl", typeName, serviceName)
 	err := cmd.Run()
 	if err != nil {
