@@ -111,14 +111,15 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 
 	app.Post("/api/kill", func(c *fiber.Ctx) error {
 		data := new(struct {
-			Type   string `form:"type"`
-			PID    int    `form:"pid"`
-			Name   string `form:"name"`
-			Server string `form:"server"`
+			Type   string `json:"type"`
+			PID    int    `json:"pid"`
+			Name   string `json:"name"`
+			Server string `json:"server"`
 		})
 		if err := c.BodyParser(&data); err != nil {
 			return err
 		}
+		fmt.Println(data)
 		if data.Type == "ollama" {
 			if data.Name != "" {
 				err := utils.TerminateOllamaProcess(cfg, data.Name, data.Server)
@@ -153,8 +154,8 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 
 	app.Post("/api/ollama/restart", func(c *fiber.Ctx) error {
 		data := new(struct {
-			Type        string `form:"type"`
-			ServiceName string `form:"service_name"`
+			Type        string `json:"type"`
+			ServiceName string `json:"service_name"`
 		})
 		if err := c.BodyParser(&data); err != nil {
 			return err
