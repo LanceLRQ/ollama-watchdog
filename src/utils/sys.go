@@ -28,8 +28,7 @@ func RestartServiceProcess(typeName string, serviceName string) error {
 	if serviceName == "" {
 		serviceName = "ollama"
 	}
-	var cmd *exec.Cmd
-	cmd = exec.Command("systemctl", typeName, serviceName)
+	cmd := exec.Command("systemctl", typeName, serviceName)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("重启Ollama服务失败：%s", err.Error())
