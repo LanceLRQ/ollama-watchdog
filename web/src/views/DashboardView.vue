@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, BaseTransition } from "vue";
 import { use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { LineChart } from "echarts/charts";
@@ -40,6 +40,7 @@ const GPUProcessData = ref([]);
 const maxHistory = ref(120); // 保留60个数据点（1分钟）
 const GPUList = ref([]);
 const CurrentGPUInfo = ref([]);
+const OllamaServices = ref([]);
 const OllamaPSList = ref([]);
 
 const serverSettings = ref({ ...DefaultServerSettings });
@@ -102,7 +103,21 @@ const connectWebSocket = () => {
 
         // 更新Ollama数据
         if (get(newData, "ollama.status")) {
-            OllamaPSList.value = get(newData, "ollama.data.models", []);
+            const ollamaServices = get(newData, "ollama.data", [])
+            OllamaServices.value = ollamaServices;
+            let ollamaPsList = [];
+            if (ollamaServices.length > 0) {
+                ollamaServices.forEach(service => {
+                    const l = get(service, 'data.models', []);
+                    if (l.length) {
+                        ollamaPsList = ollamaPsList.concat(l.map(i => ({
+                            ...i,
+                            server: service?.server ?? '',
+                        })))
+                    }
+                })
+            }
+            OllamaPSList.value = ollamaPsList;
         }
     };
 }
@@ -263,7 +278,7 @@ const handleKillProcess = (pid) => {
         .catch(() => { })
 }
 
-const handleOllamaKillProcess = (name) => {
+const handleOllamaKillProcess = (name, server) => {
     ElMessageBox.confirm(
         `确定要停止模型 ${name} 吗？`,
         'Warning',
@@ -277,6 +292,7 @@ const handleOllamaKillProcess = (name) => {
             axios.post(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/kill`, {
                 type: 'ollama',
                 name,
+                server,
             }).then((resp) => {
                 if (resp.data.status) {
                     ElMessage({
@@ -298,9 +314,21 @@ const handleOllamaKillProcess = (name) => {
         .catch(() => { })
 }
 
-const handleRestartOllamaService = (name) => {
+const handleRestartOllamaService = (name, type) => {
+    const typeMap = {
+        'start': '启动',
+        'restart': '重启',
+        'stop': '停止',
+    }
+    if (!name) {
+        ElMessage({
+            type: 'error',
+            message: '配置错误：当前ollama实例没有设置对应的系统服务名称，请检查配置文件的ollama_services字段。',
+        });
+        return;
+    }
     ElMessageBox.confirm(
-        `确定要重启Ollama服务器操作系统吗？`,
+        `确定要${typeMap[type]}Ollama实例吗？(命令：systemctl ${type} ${name})`,
         'Warning',
         {
             confirmButtonText: '确定',
@@ -309,7 +337,10 @@ const handleRestartOllamaService = (name) => {
         }
     )
         .then(() => {
-            axios.post(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/ollama/restart`).then((resp) => {
+            axios.post(`//${serverSettings.value.apiHost}${serverSettings.value.apiBasePath}/ollama/restart`, {
+                type: type,
+                service_name: name,
+            }).then((resp) => {
                 if (resp.data.status) {
                     ElMessage({
                         type: 'success',
@@ -329,7 +360,7 @@ const handleRestartOllamaService = (name) => {
         })
         .catch(() => { })
 }
-const handleReboot = (name) => {
+const handleReboot = () => {
     ElMessageBox.confirm(
         `确定要重启服务器吗？`,
         'Warning',
@@ -442,18 +473,6 @@ const getChartOption = (gpuIndex, metricKey) => {
 <template>
     <el-row :gutter="20" v-if="inited" class="monitor-container">
         <el-col>
-            <el-card>
-                <template #header>
-                    操作面板
-                </template>
-                <el-space>
-                    <el-button type="danger" @click="handleReboot">重启操作系统</el-button>
-                    <el-button type="primary" @click="handleRestartOllamaService">重启ollama服务</el-button>
-        
-                </el-space>
-            </el-card>
-        </el-col>
-        <el-col style="margin-top:20px">
             <el-card v-for="(gpu, index) in GPUList">
                 <template #header>
                     <div class="card-header">
@@ -533,11 +552,16 @@ const getChartOption = (gpuIndex, metricKey) => {
             <el-card>
                 <template #header>
                     <div class="card-header">
-                        Ollama 进程管理
+                        Ollama 运行中模型管理
                     </div>
                 </template>
                 <template #default>
                     <el-table :data="OllamaPSList" style="width: 100%">
+                        <el-table-column prop="server" label="Ollama服务地址" width="200">
+                            <template #default="scope">
+                                <a :href="scope.row.server" target="_blank"><el-tag type="info">{{ scope.row.server }}</el-tag></a>
+                            </template>
+                        </el-table-column>
                         <el-table-column prop="bus_id" label="Hash" width="150">
                             <template #default="scope">
                                 <el-tag type="info">{{ scope.row.digest.substring(0, 8) }}</el-tag>
@@ -559,19 +583,64 @@ const getChartOption = (gpuIndex, metricKey) => {
                         </el-table-column>
                         <el-table-column prop="size" label="过期时间" width="200">
                             <template #default="scope">
-                                <el-tag type="info">{{ dayjs(scope.row.expires_at).format('YYYY-MM-DD HH:mm:ss')
-                                }}</el-tag>
+                                <el-tag type="info">{{ dayjs(scope.row.expires_at).format('YYYY-MM-DD HH:mm:ss')}}</el-tag>
                             </template>
                         </el-table-column>
                         <el-table-column label="操作">
                             <template #default="scope">
-                                <el-button size="small" type="danger" @click="handleOllamaKillProcess(scope.row.name)">
+                                <el-button size="small" type="danger" @click="handleOllamaKillProcess(scope.row.name, scope.row.server)">
                                     停止
                                 </el-button>
                             </template>
                         </el-table-column>
                     </el-table>
                 </template>
+            </el-card>
+        </el-col>
+        <el-col style="margin-top:20px">
+            <el-card>
+                <template #header>
+                    <div class="card-header">
+                        Ollama 实例管理
+                    </div>
+                </template>
+                <template #default>
+                    <el-table :data="OllamaServices" style="width: 100%">
+                        <el-table-column prop="server" label="Ollama服务地址" width="250">
+                            <template #default="scope">
+                                <a :href="scope.row.server" target="_blank">{{ scope.row.server }}</a>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="status" label="状态">
+                            <template #default="scope">
+                                <el-tag :type="scope.row.status ? 'success' : 'danger'">{{ scope.row.status ? '在线' : '离线'  }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作">
+                            <template #default="scope">
+                                <el-button size="small" type="default" @click="handleRestartOllamaService(scope.row.service_name, 'start')">
+                                    启动
+                                </el-button>
+                                <el-button size="small" type="primary" @click="handleRestartOllamaService(scope.row.service_name, 'restart')">
+                                    重启
+                                </el-button>
+                                <el-button size="small" type="danger" @click="handleRestartOllamaService(scope.row.service_name, 'stop')">
+                                    停止
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </template>
+            </el-card>
+        </el-col>
+        <el-col style="margin-top:20px">
+            <el-card>
+                <template #header>
+                    操作面板
+                </template>
+                <el-space>
+                    <el-button type="danger" @click="handleReboot">重启操作系统</el-button>
+                </el-space>
             </el-card>
         </el-col>
     </el-row>
