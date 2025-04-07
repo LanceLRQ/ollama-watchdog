@@ -9,10 +9,12 @@ import (
 )
 
 type ServerConfigStruct struct {
-	Listen        string `yaml:"listen" json:"listen"`
-	OllamaListen  string `yaml:"ollama_listen" json:"ollama_listen"`
-	NvidiaSmiPath string `yaml:"nvidia_smi_path" json:"nvidia_smi_path"`
-	GPUSampleDB   string `yaml:"gpu_sample_db" json:"gpu_sample_db"`
+	Listen         string   `yaml:"listen" json:"listen"`
+	OllamaListen   string   `yaml:"ollama_listen" json:"ollama_listen"`
+	OllamaListens  []string `yaml:"ollama_listens" json:"ollama_listens"`
+	OllamaServices []string `yaml:"ollama_services" json:"ollama_services"`
+	NvidiaSmiPath  string   `yaml:"nvidia_smi_path" json:"nvidia_smi_path"`
+	GPUSampleDB    string   `yaml:"gpu_sample_db" json:"gpu_sample_db"`
 }
 
 func GetDefaulfAppDataPath() string {
@@ -37,10 +39,12 @@ func GetDefaultDBConfigPath() string {
 
 func GetDefaultServerConfig() ServerConfigStruct {
 	return ServerConfigStruct{
-		Listen:        "0.0.0.0:23333",
-		OllamaListen:  "http://127.0.0.1:11434",
-		NvidiaSmiPath: "/usr/bin/nvidia-smi",
-		GPUSampleDB:   GetDefaultDBConfigPath(),
+		Listen:         "0.0.0.0:23333",
+		OllamaListen:   "http://127.0.0.1:11434", // 兼容
+		OllamaListens:  []string{"http://127.0.0.1:11434"},
+		OllamaServices: []string{"ollama"},
+		NvidiaSmiPath:  "/usr/bin/nvidia-smi",
+		GPUSampleDB:    GetDefaultDBConfigPath(),
 	}
 }
 
@@ -55,6 +59,15 @@ func ReadServerConfig(path string) (*ServerConfigStruct, error) {
 	}
 
 	err = yaml.Unmarshal(data, &cfg)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cfg.OllamaListens) > 0 {
+		cfg.OllamaListen = cfg.OllamaListens[0]
+	}
+
 	return &cfg, err
 }
 

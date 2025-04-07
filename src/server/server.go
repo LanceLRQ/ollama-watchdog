@@ -111,16 +111,17 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 
 	app.Post("/api/kill", func(c *fiber.Ctx) error {
 		data := new(struct {
-			Type string `form: "type"`
-			PID  int    `form: "pid"`
-			Name string `form: "name"`
+			Type   string `form: "type"`
+			PID    int    `form: "pid"`
+			Name   string `form: "name"`
+			Server string `form: "server"`
 		})
 		if err := c.BodyParser(&data); err != nil {
 			return err
 		}
 		if data.Type == "ollama" {
 			if data.Name != "" {
-				err := utils.TerminateOllamaProcess(data.Name)
+				err := utils.TerminateOllamaProcess(cfg, data.Name, data.Server)
 				if err != nil {
 					return c.JSON(fiber.Map{"status": false, "message": "Failed to terminate process"})
 				}
@@ -151,9 +152,16 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 	})
 
 	app.Post("/api/ollama/restart", func(c *fiber.Ctx) error {
-		err := utils.RestartServiceProcess()
+		data := new(struct {
+			Type        string `form:"type"`
+			ServiceName string `form: "service_name"`
+		})
+		if err := c.BodyParser(&data); err != nil {
+			return err
+		}
+		err := utils.RestartServiceProcess(data.Type, data.ServiceName)
 		if err != nil {
-			return c.JSON(fiber.Map{"status": false, "message": "Failed to restart ollama"})
+			return c.JSON(fiber.Map{"status": false, "message": err.Error()})
 		}
 		return c.JSON(fiber.Map{"status": true})
 	})
@@ -166,6 +174,12 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 		// Remove Server header from response
 		c.Response().Header.Del(fiber.HeaderServer)
 		return nil
+	})
+
+	app.Get("/api/ollama/ps", func(c *fiber.Ctx) error {
+		result := services.GetOllamaPS(cfg)
+		// Remove Server header from response
+		return c.JSON(result)
 	})
 
 	// 静态文件服务

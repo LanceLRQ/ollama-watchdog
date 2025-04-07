@@ -78,6 +78,53 @@ func SetConfigValue(cfg interface{}, key, value string) error {
 				return fmt.Errorf("invalid value for %s: %v", keys[0], value)
 			}
 			field.SetFloat(floatValue)
+		case reflect.Array, reflect.Slice:
+			// 处理数组或切片类型
+			elements := strings.Split(value, ",")
+			arrayLen := field.Len()
+			if field.Kind() == reflect.Slice {
+				// 如果是切片，先创建足够长度的切片
+				field.Set(reflect.MakeSlice(field.Type(), len(elements), len(elements)))
+				arrayLen = len(elements)
+			} else if len(elements) != arrayLen {
+				// 对于数组，检查长度是否匹配
+				return fmt.Errorf("array length mismatch for %s: expected %d, got %d",
+					keys[0], arrayLen, len(elements))
+			}
+
+			// 获取数组元素的类型
+			elemType := field.Type().Elem()
+			for i := 0; i < arrayLen && i < len(elements); i++ {
+				elemValue := elements[i]
+				elem := reflect.New(elemType).Elem()
+
+				switch elem.Kind() {
+				case reflect.String:
+					elem.SetString(elemValue)
+				case reflect.Int:
+					intValue, err := strconv.Atoi(elemValue)
+					if err != nil {
+						return fmt.Errorf("invalid array element value for %s[%d]: %v", keys[0], i, elemValue)
+					}
+					elem.SetInt(int64(intValue))
+				case reflect.Bool:
+					boolValue, err := strconv.ParseBool(elemValue)
+					if err != nil {
+						return fmt.Errorf("invalid array element value for %s[%d]: %v", keys[0], i, elemValue)
+					}
+					elem.SetBool(boolValue)
+				case reflect.Float64:
+					floatValue, err := strconv.ParseFloat(elemValue, 64)
+					if err != nil {
+						return fmt.Errorf("invalid array element value for %s[%d]: %v", keys[0], i, elemValue)
+					}
+					elem.SetFloat(floatValue)
+				default:
+					return fmt.Errorf("unsupported array element type for %s: %v", keys[0], elemType)
+				}
+
+				field.Index(i).Set(elem)
+			}
 		default:
 			return fmt.Errorf("unsupported configuration key type: %s", keys[0])
 		}
