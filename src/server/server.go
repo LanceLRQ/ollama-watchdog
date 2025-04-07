@@ -119,7 +119,6 @@ func StartHttpServer(cfg *configs.ServerConfigStruct) error {
 		if err := c.BodyParser(&data); err != nil {
 			return err
 		}
-		fmt.Println(data)
 		if data.Type == "ollama" {
 			if data.Name != "" {
 				err := utils.TerminateOllamaProcess(cfg, data.Name, data.Server)
